@@ -51,7 +51,7 @@ import com.catify.processengine.core.data.model.NodeInstaceStates;
 import com.catify.processengine.core.data.model.entities.FlowNode;
 import com.catify.processengine.core.data.model.entities.FlowNodeInstance;
 import com.catify.processengine.core.data.services.FlowNodeInstanceRepositoryService;
-import com.catify.processengine.core.data.services.impl.IdService;
+import com.catify.processengine.core.data.services.IdService;
 import com.catify.processengine.core.messages.TriggerMessage;
 import com.catify.processengine.core.processdefinition.jaxb.TProcess;
 import com.catify.processengine.management.ProcessManagementService;
