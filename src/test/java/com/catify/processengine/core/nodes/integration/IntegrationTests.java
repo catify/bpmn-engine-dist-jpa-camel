@@ -81,7 +81,7 @@ public class IntegrationTests {
 
     private final String client = "Client";
     private final String startEvent = "startEvent1";
-    private final String catchEvent = "catchEvent1";
+//    private final String catchEvent = "catchEvent1";
     private final String defaultInstanceId = "42";
     
     private ProcessManagementService pm = new ProcessManagementServiceImpl();
@@ -92,15 +92,15 @@ public class IntegrationTests {
     public void prepareTestDatabase()
     {
     	Map<String, GraphRepository> graphRepositories = ctx.getBeansOfType(GraphRepository.class);
-      LOG.debug("Clearing database!");
-      for (GraphRepository graphRepository : graphRepositories.values()) {
-          graphRepository.deleteAll();
-      }
-      try {
-			Thread.sleep(3000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+	      LOG.debug("Clearing database!");
+	      for (GraphRepository graphRepository : graphRepositories.values()) {
+	          graphRepository.deleteAll();
+	      }
+	      try {
+				Thread.sleep(3000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
     }
 	
 	@Test
@@ -153,41 +153,41 @@ public class IntegrationTests {
 		return process;
 	}
 	
-	/**
-	 * Helper method to test standard scenarios with a node to trigger.
-	 *
-	 * @param fileName name of the file without path and slash (must be in /src/test/resources/data/)
-	 * @param flowNodeIdToTrigger the flow node id to trigger
-	 * @param firstSleep milliseconds of the first sleep
-	 * @param secondSleep milliseconds of the first sleep
-	 * @param thirdSleep milliseconds of the third sleep
-	 * @param awaitedFlowNodeCount awaited number of flow nodes
-	 * @param awaitedInstanceNodeCount awaited number of flow node instances
-	 * @return the jaxb process
-	 * @throws FileNotFoundException the file not found exception
-	 * @throws JAXBException the jAXB exception
-	 * @throws InterruptedException the interrupted exception
-	 */
-	private TProcess simpleProcessTestWithTrigger(String fileName, String flowNodeIdToTrigger, int firstSleep, int secondSleep, int thirdSleep, int awaitedFlowNodeCount, int awaitedInstanceNodeCount) 
-			throws FileNotFoundException, JAXBException, InterruptedException {
-		TProcess process = startProcess(fileName, firstSleep);
-		pm.createProcessInstance(client, process, startEvent, new TriggerMessage(defaultInstanceId, null));
-
-		// wait for the process instance to start up
-		Thread.sleep(secondSleep);
-		
-	    // trigger the waiting catch event
-	    pm.sendTriggerMessage(client, process, flowNodeIdToTrigger, new TriggerMessage(defaultInstanceId, null));
-	    
-	    // wait for the process instance to end
-	    Thread.sleep(thirdSleep);
-
-		// check results
-		Assert.assertEquals(awaitedFlowNodeCount, getFlowNodeCount());
-		Assert.assertEquals(awaitedInstanceNodeCount, getFlowNodeInstanceCount());
-		
-		return process;
-	}
+//	/**
+//	 * Helper method to test standard scenarios with a node to trigger.
+//	 *
+//	 * @param fileName name of the file without path and slash (must be in /src/test/resources/data/)
+//	 * @param flowNodeIdToTrigger the flow node id to trigger
+//	 * @param firstSleep milliseconds of the first sleep
+//	 * @param secondSleep milliseconds of the first sleep
+//	 * @param thirdSleep milliseconds of the third sleep
+//	 * @param awaitedFlowNodeCount awaited number of flow nodes
+//	 * @param awaitedInstanceNodeCount awaited number of flow node instances
+//	 * @return the jaxb process
+//	 * @throws FileNotFoundException the file not found exception
+//	 * @throws JAXBException the jAXB exception
+//	 * @throws InterruptedException the interrupted exception
+//	 */
+//	private TProcess simpleProcessTestWithTrigger(String fileName, String flowNodeIdToTrigger, int firstSleep, int secondSleep, int thirdSleep, int awaitedFlowNodeCount, int awaitedInstanceNodeCount) 
+//			throws FileNotFoundException, JAXBException, InterruptedException {
+//		TProcess process = startProcess(fileName, firstSleep);
+//		pm.createProcessInstance(client, process, startEvent, new TriggerMessage(defaultInstanceId, null));
+//
+//		// wait for the process instance to start up
+//		Thread.sleep(secondSleep);
+//		
+//	    // trigger the waiting catch event
+//	    pm.sendTriggerMessage(client, process, flowNodeIdToTrigger, new TriggerMessage(defaultInstanceId, null));
+//	    
+//	    // wait for the process instance to end
+//	    Thread.sleep(thirdSleep);
+//
+//		// check results
+//		Assert.assertEquals(awaitedFlowNodeCount, getFlowNodeCount());
+//		Assert.assertEquals(awaitedInstanceNodeCount, getFlowNodeInstanceCount());
+//		
+//		return process;
+//	}
 	
 	/**
 	 * Start a process.
