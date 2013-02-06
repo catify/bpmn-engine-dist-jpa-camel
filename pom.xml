@@ -11,8 +11,16 @@
 
 	<description>catify BPMN Engine Core distribution package with JPA and Camel service provider</description>
 
+	<parent>
+		<groupId>org.sonatype.oss</groupId>
+		<artifactId>oss-parent</artifactId>
+		<version>7</version>
+	</parent>
+
 	<scm>
-		<url>https://github.com/catify/bpmn-engine-data-spi-jpa.git</url>
+		<connection>scm:git:git@github.com:catify/bpmn-engine-dist-jpa-camel.git</connection>
+		<developerConnection>scm:git:git@github.com:catify/bpmn-engine-dist-jpa-camel.git</developerConnection>
+		<url>git@github.com:catify/bpmn-engine-dist-jpa-camel.git</url>
 	</scm>
 
 	<dependencies>
@@ -101,6 +109,34 @@
 						<phase>verify</phase>
 						<goals>
 							<goal>sign</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
+			<!-- create javadocs -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>attach-javadocs</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		
+			<!-- create sources -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar</goal>
 						</goals>
 					</execution>
 				</executions>
