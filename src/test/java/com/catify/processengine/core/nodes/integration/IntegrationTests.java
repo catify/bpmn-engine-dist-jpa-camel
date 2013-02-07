@@ -21,18 +21,18 @@
 package com.catify.processengine.core.nodes.integration;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import javax.xml.bind.JAXBException;
 
 import junit.framework.Assert;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.neo4j.helpers.collection.Iterables;
@@ -40,16 +40,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
-import org.springframework.data.neo4j.conversion.EndResult;
-import org.springframework.data.neo4j.repository.GraphRepository;
 import org.springframework.data.neo4j.support.Neo4jTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.catify.processengine.core.data.model.NodeInstaceStates;
-import com.catify.processengine.core.data.model.entities.FlowNode;
 import com.catify.processengine.core.data.model.entities.FlowNodeInstance;
+import com.catify.processengine.core.data.model.entities.ProcessNode;
 import com.catify.processengine.core.data.services.FlowNodeInstanceRepositoryService;
+import com.catify.processengine.core.data.services.IdService;
+import com.catify.processengine.core.data.services.ProcessNodeRepositoryService;
 import com.catify.processengine.core.messages.TriggerMessage;
 import com.catify.processengine.core.processdefinition.jaxb.TProcess;
 import com.catify.processengine.management.ProcessManagementService;
@@ -75,7 +75,10 @@ public class IntegrationTests {
 	private Neo4jTemplate neo4jTemplate;
 	
 	@Autowired
-	private FlowNodeInstanceRepositoryService flowNodeRepo;
+	private FlowNodeInstanceRepositoryService flowNodeInstanceRepo;
+	
+	@Autowired
+	private ProcessNodeRepositoryService processNodeRepo;
 
     private final String client = "Client";
     private final String startEvent = "startEvent1";
@@ -84,44 +87,67 @@ public class IntegrationTests {
     
     private ProcessManagementService pm = new ProcessManagementServiceImpl();
     private XmlJaxbTransformer xmlJaxbTransformer = new XmlJaxbTransformer();
-
-    @SuppressWarnings("rawtypes") // we just need to clear all values
-    @Before
-    public void prepareTestDatabase()
-    {
-    	Map<String, GraphRepository> graphRepositories = ctx.getBeansOfType(GraphRepository.class);
-	      LOG.debug("Clearing database!");
-	      for (GraphRepository graphRepository : graphRepositories.values()) {
-	          graphRepository.deleteAll();
-	      }
-	      try {
-				Thread.sleep(3000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-    }
 	
 	@Test
 	public void testprocessTimerCatchDuration() throws IOException, JAXBException, InterruptedException {
-		simpleProcessTest("testprocess_timer_catch_duration.bpmn", 3000, 20000, 8, 4);
-	    Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE));
+		TProcess process = simpleProcessTest("testprocess_timer_catch_duration.bpmn", 3000, 20000, 8, 4);
+	    Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE, process, defaultInstanceId));
 	}
 	
 	@Test
 	public void testprocessTimerStartCycle() throws IOException, JAXBException, InterruptedException {
-		startProcess("testprocess_timer_start_cycle.bpmn", 3000);
+		TProcess process = startProcess("testprocess_timer_start_cycle.bpmn", 3000);
 		Thread.sleep(20000);
 		// check results
-		Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE));
-		Assert.assertEquals(6, getFlowNodeCount());
-		Assert.assertEquals(9, getFlowNodeInstanceCount());
+		Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE, process, defaultInstanceId));
+		Assert.assertEquals(6, getFlowNodeCount(process));
+		Assert.assertEquals(9, getFlowNodeInstanceCount(process));
 	}
 	
-//	@Test
-//	public void testprocessCatch() throws IOException, JAXBException, InterruptedException {
-//		simpleProcessTestWithTrigger("testprocess_catch.bpmn", catchEvent, 3000, 5000, 5000, 6, 3);		
-//	    Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE));
-//	}
+	@Test
+	public void testprocessBoundaryNoninterruptingDeactivated() throws IOException, JAXBException, InterruptedException {
+		TProcess process = simpleProcessTest("testprocess_boundary_noninterrupting_deactivated_messageIntegration_camel.bpmn", 3000, 5000, 12, 6);	
+	    Assert.assertFalse(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE, process, defaultInstanceId));
+	    checkNodeInstance(process, "_8", NodeInstaceStates.DEACTIVATED_STATE);
+	    checkNodeInstance(process, "_9", NodeInstaceStates.INACTIVE_STATE);
+	    checkNodeInstance(process, "_10", NodeInstaceStates.INACTIVE_STATE);
+	}
+	
+	@Test
+	public void testprocessBoundaryNoninterruptingActivated() throws IOException, JAXBException, InterruptedException {
+
+		TProcess process = startProcess("testprocess_boundary_noninterrupting_activated_messageIntegration_camel.bpmn", 4000);
+		pm.createProcessInstance(client, process, startEvent, new TriggerMessage(defaultInstanceId, null));
+
+		// wait for the process instance to start up
+		Thread.sleep(3000);
+		
+	    // trigger the waiting catch event
+	    pm.sendTriggerMessage(client, process, "_8", new TriggerMessage(defaultInstanceId, null));
+		
+		Thread.sleep(3000);
+		
+		pm.sendTriggerMessage(client, process, "_5", new TriggerMessage(defaultInstanceId, null));
+		
+		Thread.sleep(3000);
+		
+		// check results
+		Assert.assertEquals(12, getFlowNodeCount(process));
+		Assert.assertEquals(6, getFlowNodeInstanceCount(process));
+		
+	    Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE, process, defaultInstanceId));
+	    checkNodeInstance(process, "_5", NodeInstaceStates.PASSED_STATE);
+	    checkNodeInstance(process, "_8", NodeInstaceStates.PASSED_STATE);
+	    checkNodeInstance(process, "_9", NodeInstaceStates.PASSED_STATE);
+	    checkNodeInstance(process, "_10", NodeInstaceStates.PASSED_STATE);
+	}
+	
+	
+	@Test
+	public void testprocessThrowMessageIntegration() throws IOException, JAXBException, InterruptedException {
+		TProcess process = simpleProcessTest("testprocess_throw_camel_messageIntegration.bpmn", 3000, 5000, 6, 3);
+	    Assert.assertTrue(checkFlowNodeInstanceState(NodeInstaceStates.PASSED_STATE, process, defaultInstanceId));
+	}
 	
 	/**
 	 * Helper method to test standard scenarios.
@@ -145,8 +171,8 @@ public class IntegrationTests {
 		Thread.sleep(secondSleep);
 
 		// check results
-		Assert.assertEquals(awaitedFlowNodeCount, getFlowNodeCount());
-		Assert.assertEquals(awaitedInstanceNodeCount, getFlowNodeInstanceCount());
+		Assert.assertEquals(awaitedFlowNodeCount, getFlowNodeCount(process));
+		Assert.assertEquals(awaitedInstanceNodeCount, getFlowNodeInstanceCount(process));
 		
 		return process;
 	}
@@ -181,8 +207,8 @@ public class IntegrationTests {
 //	    Thread.sleep(thirdSleep);
 //
 //		// check results
-//		Assert.assertEquals(awaitedFlowNodeCount, getFlowNodeCount());
-//		Assert.assertEquals(awaitedInstanceNodeCount, getFlowNodeInstanceCount());
+//		Assert.assertEquals(awaitedFlowNodeCount, getFlowNodeCount(process));
+//		Assert.assertEquals(awaitedInstanceNodeCount, getFlowNodeInstanceCount(process));
 //		
 //		return process;
 //	}
@@ -217,9 +243,12 @@ public class IntegrationTests {
 	 *
 	 * @return the flow node count
 	 */
-	long getFlowNodeCount() {
-		EndResult<FlowNode> fn = neo4jTemplate.findAll(FlowNode.class);
-		return Iterables.count(fn);
+	long getFlowNodeCount(TProcess process) {
+		String processId = IdService.getUniqueProcessId(client, process);
+		ProcessNode processNode = processNodeRepo.findByUniqueProcessId(processId);
+		ProcessNode archivedProcessNode = processNodeRepo.findArchivedByRunningUniqueProcessId(processId);
+		
+		return processNode.getFlowNodes().size() + archivedProcessNode.getFlowNodes().size();
 	}
 	
 	/**
@@ -227,8 +256,21 @@ public class IntegrationTests {
 	 *
 	 * @return the flow node instance count
 	 */
-	long getFlowNodeInstanceCount() {
-		EndResult<FlowNodeInstance> fni = neo4jTemplate.findAll(FlowNodeInstance.class);
+	long getFlowNodeInstanceCount(TProcess process) {		
+		return this.getFlowNodeInstanceCount(process, defaultInstanceId);
+	}
+	
+	/**
+	 * Gets the flow node instance count.
+	 * 
+	 * @param process {@link TProcess} process object
+	 * @param instanceId instance id as {@link String}
+	 * @return
+	 */
+	long getFlowNodeInstanceCount(TProcess process, String instanceId) {
+		String processId = IdService.getUniqueProcessId(client, process);
+		Set<FlowNodeInstance> fni = flowNodeInstanceRepo.findAllFlowNodeInstances(processId, instanceId);
+		
 		return Iterables.count(fni);
 	}
 
@@ -238,8 +280,14 @@ public class IntegrationTests {
 	 * @param state the state
 	 * @return true, if all FlowNodeInstances have the given state
 	 */
-	boolean checkFlowNodeInstanceState(String state) {
-		EndResult<FlowNodeInstance> fni = neo4jTemplate.findAll(FlowNodeInstance.class);
+	boolean checkFlowNodeInstanceState(String state, TProcess process, String processInstanceId) {
+		
+		String processId = IdService.getUniqueProcessId(client, process);
+		Set<FlowNodeInstance> fni = flowNodeInstanceRepo.findAllFlowNodeInstances(processId, processInstanceId);
+		
+		if (fni.size()==0) {
+			return false;
+		}
 		
 		for (FlowNodeInstance flowNodeInstance : fni) {
 			if (!flowNodeInstance.getNodeInstanceState().equals(state)) {
@@ -256,8 +304,10 @@ public class IntegrationTests {
 	 * @param state the state
 	 * @return the int
 	 */
-	int countFlowNodeInstanceWithState(String state) {
-		EndResult<FlowNodeInstance> fni = neo4jTemplate.findAll(FlowNodeInstance.class);
+	int countFlowNodeInstanceWithState(String state, TProcess process, String processInstanceId) {
+		String processId = IdService.getUniqueProcessId(client, process);
+		Set<FlowNodeInstance> fni = flowNodeInstanceRepo.findAllFlowNodeInstances(processId, processInstanceId);
+		
 		int counter = 0;
 		
 		for (FlowNodeInstance flowNodeInstance : fni) {
@@ -269,19 +319,32 @@ public class IntegrationTests {
 		return counter;
 	}
 	
+	/**
+	 * Count the flow node instances of a process.
+	 *
+	 * @param state the state
+	 * @return the int
+	 */
+	int countAllProcessInstances(TProcess process) {
+		String processId = IdService.getUniqueProcessId(client, process);
+		Set<String> fni = flowNodeInstanceRepo.findAllFlowNodeInstances(processId);
 
-//	/**
-//	 * Check node instance.
-//	 *
-//	 * @param process the jaxb process
-//	 * @param id the id of the flow node to check
-//	 * @param state the desired state
-//	 */
-//	private void checkNodeInstance(TProcess process, String id, String state) {
-//		String flowNodeId = IdService.getArchivedUniqueFlowNodeId(client, process, null, id); // default throw
-//		String processId = IdService.getArchivedUniqueProcessId(client, process);
-//		FlowNodeInstance nodeInstance = flowNodeRepo.findFlowNodeInstance(processId, flowNodeId, defaultInstanceId);
-//		assertNotNull(nodeInstance);
-//		assertEquals(state, nodeInstance.getNodeInstanceState());
-//	}
+		return fni.size();
+	}
+	
+
+	/**
+	 * Check node instance for a given state.
+	 *
+	 * @param process the jaxb process
+	 * @param id the id of the flow node to check
+	 * @param state the desired state
+	 */
+	private void checkNodeInstance(TProcess process, String id, String state) {
+		String flowNodeId = IdService.getUniqueFlowNodeId(client, process, null, id); // default throw
+		String processId = IdService.getUniqueProcessId(client, process);
+		FlowNodeInstance nodeInstance = flowNodeInstanceRepo.findFlowNodeInstance(processId, flowNodeId, defaultInstanceId);
+		assertNotNull(nodeInstance);
+		assertEquals(state, nodeInstance.getNodeInstanceState());
+	}
 }
